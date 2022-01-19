@@ -1,0 +1,6 @@
+.phpunit.result.cache
+clover.xml
+composer.lock
+phpunit.xml
+reports
+vendor
