@@ -16,6 +16,7 @@ namespace MetaLine\WordPressAPIClient;
 use GuzzleHttp\ClientInterface as GuzzleClient;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\ServerException;
 use MetaLine\WordPressAPIClient\Exception\ApiException;
 use MetaLine\WordPressAPIClient\Exception\ResourceNotFoundException;
 use Psr\Http\Message\ResponseInterface;
@@ -123,7 +124,7 @@ final class Client implements ClientInterface
 
         try {
             return $this->client->request($method, $uri, $options);
-        } catch (ConnectException $e) {
+        } catch (ConnectException|ServerException $e) {
             --$retries;
 
             if (0 === $retries) {
