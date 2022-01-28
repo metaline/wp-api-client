@@ -15,12 +15,14 @@ use Exception;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\ServerException;
 use GuzzleHttp\Psr7\Response;
 use MetaLine\WordPressAPIClient\Exception\ApiException;
 use MetaLine\WordPressAPIClient\Client;
 use MetaLine\WordPressAPIClient\Exception\ResourceNotFoundException;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use SplFileObject;
 
 class ClientTest extends TestCase
@@ -226,6 +228,23 @@ class ClientTest extends TestCase
 
         $this->expectException(ApiException::class);
         $this->expectExceptionMessage('Connection refused');
+
+        $client = new Client($guzzle);
+        $client->post('test');
+    }
+
+    public function testRetriesOnServerError()
+    {
+        $request = $this->createMock(RequestInterface::class);
+        $response = $this->createMock(ResponseInterface::class);
+        $guzzle = $this->createMock(ClientInterface::class);
+        $guzzle
+            ->expects($this->exactly(5))
+            ->method('request')
+            ->willThrowException(new ServerException('Server maintenance', $request, $response));
+
+        $this->expectException(ApiException::class);
+        $this->expectExceptionMessage('Server maintenance');
 
         $client = new Client($guzzle);
         $client->post('test');
