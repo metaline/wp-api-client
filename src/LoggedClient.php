@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace MetaLine\WordPressAPIClient;
 
+use InvalidArgumentException;
 use MetaLine\WordPressAPIClient\Exception\ResourceNotFoundException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
@@ -26,10 +27,38 @@ final class LoggedClient implements ClientInterface
 
     private LoggerInterface $logger;
 
+    private string $successfulRequestLevel = LogLevel::INFO;
+
     public function __construct(ClientInterface $client, LoggerInterface $logger)
     {
         $this->client = $client;
         $this->logger = $logger;
+    }
+
+    public function setSuccessfulRequestLevel(string $logLevel): void
+    {
+        $levels = [
+            LogLevel::EMERGENCY,
+            LogLevel::ALERT,
+            LogLevel::CRITICAL,
+            LogLevel::ERROR,
+            LogLevel::WARNING,
+            LogLevel::NOTICE,
+            LogLevel::INFO,
+            LogLevel::DEBUG,
+        ];
+
+        if (!in_array($logLevel, $levels)) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    "'%s' is not a valid log level! Use one of the constants of the %s class.",
+                    $logLevel,
+                    LogLevel::class
+                )
+            );
+        }
+
+        $this->successfulRequestLevel = $logLevel;
     }
 
     public function request(string $method, $uri, array $data = [], array $query = []): array
@@ -44,7 +73,7 @@ final class LoggedClient implements ClientInterface
         try {
             $result = $this->client->request($method, $uri, $data, $query);
 
-            $this->logger->info(sprintf('[API] Call "%s %s"', $method, $uri), [
+            $this->logger->log($this->successfulRequestLevel, sprintf('[API] Call "%s %s"', $method, $uri), [
                 'request' => $logRequest,
                 'result'  => $result,
             ]);

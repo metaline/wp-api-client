@@ -11,12 +11,14 @@
 
 namespace MetaLine\WordPressAPIClient\Tests;
 
+use InvalidArgumentException;
 use MetaLine\WordPressAPIClient\ApiExceptionInterface;
 use MetaLine\WordPressAPIClient\ClientInterface;
 use MetaLine\WordPressAPIClient\Exception\ApiException;
 use MetaLine\WordPressAPIClient\Exception\ResourceNotFoundException;
 use MetaLine\WordPressAPIClient\LoggedClient;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LogLevel;
 use Psr\Log\Test\TestLogger;
 use SplFileObject;
 
@@ -34,7 +36,10 @@ class LoggedClientTest extends TestCase
         $this->innerClient = $this->createMock(ClientInterface::class);
     }
 
-    public function testSuccessfulRequestIsLoggedAsInfo()
+    /**
+     * @dataProvider logLevelsProvider
+     */
+    public function testSuccessfulRequestIsLoggedAsInfo($logLevel)
     {
         $requestMethod = 'GET';
         $requestPath = 'success';
@@ -46,6 +51,13 @@ class LoggedClientTest extends TestCase
             ->willReturn($result);
 
         $client = new LoggedClient($this->innerClient, $this->logger);
+
+        if ($logLevel) {
+            $client->setSuccessfulRequestLevel($logLevel);
+        } else {
+            $logLevel = LogLevel::INFO;
+        }
+
         $client->get($requestPath);
 
         $expectedRecord = [
@@ -61,7 +73,24 @@ class LoggedClientTest extends TestCase
             ],
         ];
 
-        $this->assertTrue($this->logger->hasRecord($expectedRecord, 'info'));
+        $this->assertTrue($this->logger->hasRecord($expectedRecord, $logLevel));
+    }
+
+    public function logLevelsProvider(): iterable
+    {
+        yield [null];
+        yield [LogLevel::DEBUG];
+        yield [LogLevel::INFO];
+        yield [LogLevel::NOTICE];
+    }
+
+    public function testSuccessfulRequestLevelMustBeValid()
+    {
+        $client = new LoggedClient($this->innerClient, $this->logger);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('\'foo\' is not a valid log level! Use one of the constants of the Psr\Log\LogLevel class.');
+        $client->setSuccessfulRequestLevel('foo');
     }
 
     /**
