@@ -1,5 +1,7 @@
 # WP API Client
 
+![Test library](https://github.com/metaline/wp-api-client/actions/workflows/test-library.yml/badge.svg)
+
 A PHP client for the WordPress REST API, based on [Guzzle](https://guzzlephp.org/).
 
 ## Installation
