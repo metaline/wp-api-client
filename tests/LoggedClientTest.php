@@ -18,28 +18,57 @@ use MetaLine\WordPressAPIClient\Exception\ApiException;
 use MetaLine\WordPressAPIClient\Exception\ResourceNotFoundException;
 use MetaLine\WordPressAPIClient\LoggedClient;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
-use Psr\Log\Test\TestLogger;
 use SplFileObject;
+use WMDE\PsrLogTestDoubles\LegacyLoggerSpy;
+use WMDE\PsrLogTestDoubles\LogCall;
+use WMDE\PsrLogTestDoubles\LoggerSpy;
 
 class LoggedClientTest extends TestCase
 {
     use ClientTrait;
 
-    private TestLogger $logger;
+    /**
+     * @var LegacyLoggerSpy|LoggerSpy
+     */
+    private $logger;
 
     private ClientInterface $innerClient;
 
     protected function setUp(): void
     {
-        $this->logger = new TestLogger();
+        $this->logger = $this->createLoggerSpy();
         $this->innerClient = $this->createMock(ClientInterface::class);
+    }
+
+    /**
+     * @return LegacyLoggerSpy|LoggerSpy
+     */
+    private function createLoggerSpy()
+    {
+        if (!class_exists(LegacyLoggerSpy::class)) {
+            return new LoggerSpy();
+        }
+
+        $reflection = new \ReflectionClass(LoggerInterface::class);
+        $messageParameter = $reflection->getMethod('log')->getParameters()[1];
+
+        if ($messageParameter->getType()) {
+            foreach ($messageParameter->getType()->getTypes() as $type) {
+                if ('Stringable' === $type->getName()) {
+                    return new LoggerSpy();
+                }
+            }
+        }
+
+        return new LegacyLoggerSpy();
     }
 
     /**
      * @dataProvider logLevelsProvider
      */
-    public function testSuccessfulRequestIsLoggedAsInfo($logLevel)
+    public function testSuccessfulRequestIsLogged($logLevel)
     {
         $requestMethod = 'GET';
         $requestPath = 'success';
@@ -61,9 +90,11 @@ class LoggedClientTest extends TestCase
 
         $client->get($requestPath);
 
-        $expectedRecord = [
-            'message' => "[API] Call \"$requestMethod $requestPath\"",
-            'context' => [
+        $this->assertLogRecord(
+            $this->logger->getFirstLogCall(),
+            $logLevel,
+            "[API] Call \"$requestMethod $requestPath\"",
+            [
                 'request' => [
                     'method' => $requestMethod,
                     'uri'    => $requestPath,
@@ -71,10 +102,8 @@ class LoggedClientTest extends TestCase
                     'query'  => [],
                 ],
                 'result'  => $result,
-            ],
-        ];
-
-        $this->assertTrue($this->logger->hasRecord($expectedRecord, $logLevel));
+            ]
+        );
     }
 
     public function logLevelsProvider(): iterable
@@ -115,9 +144,11 @@ class LoggedClientTest extends TestCase
 
             $this->fail('The client does not throw the expected exception!');
         } catch (ApiExceptionInterface $e) {
-            $expectedRecord = [
-                'message' => "[API] Call \"$requestMethod $requestPath\"",
-                'context' => [
+            $this->assertLogRecord(
+                $this->logger->getFirstLogCall(),
+                $logLevel,
+                "[API] Call \"$requestMethod $requestPath\"",
+                [
                     'request'   => [
                         'method' => $requestMethod,
                         'uri'    => $requestPath,
@@ -125,10 +156,8 @@ class LoggedClientTest extends TestCase
                         'query'  => [],
                     ],
                     'exception' => $exception,
-                ],
-            ];
-
-            $this->assertTrue($this->logger->hasRecord($expectedRecord, $logLevel));
+                ]
+            );
         }
     }
 
@@ -172,9 +201,11 @@ class LoggedClientTest extends TestCase
         $client = new LoggedClient($this->innerClient, $this->logger);
         $client->post($requestPath, $params);
 
-        $expectedRecord = [
-            'message' => "[API] Call \"$requestMethod $requestPath\"",
-            'context' => [
+        $this->assertLogRecord(
+            $this->logger->getFirstLogCall(),
+            LogLevel::INFO,
+            "[API] Call \"$requestMethod $requestPath\"",
+            [
                 'request' => [
                     'method' => $requestMethod,
                     'uri'    => $requestPath,
@@ -186,9 +217,18 @@ class LoggedClientTest extends TestCase
                     'query'  => [],
                 ],
                 'result'  => $result,
-            ],
-        ];
+            ]
+        );
+    }
 
-        $this->assertTrue($this->logger->hasRecord($expectedRecord, 'info'));
+    private function assertLogRecord(
+        LogCall $logCall,
+        string $expectedLevel,
+        string $expectedMessage,
+        array $expectedContext
+    ): void {
+        $this->assertSame($expectedLevel, $logCall->getLevel());
+        $this->assertSame($expectedMessage, $logCall->getMessage());
+        $this->assertEquals($expectedContext, $logCall->getContext());
     }
 }
