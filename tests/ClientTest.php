@@ -33,7 +33,9 @@ class ClientTest extends TestCase
     {
         $response = new Response(200, [], '{"message":"OK"}');
         $guzzle = $this->createMock(ClientInterface::class);
-        $guzzle->method('request')
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
             ->with('GET', 'successful', [])
             ->willReturn($response);
 
@@ -50,7 +52,9 @@ class ClientTest extends TestCase
     {
         $response = new Response(200, [], '{"message":"OK"}');
         $guzzle = $this->createMock(ClientInterface::class);
-        $guzzle->method('request')
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
             ->with('GET', $expectedUri, [])
             ->willReturn($response);
 
@@ -88,7 +92,9 @@ class ClientTest extends TestCase
     {
         $response = new Response(201, [], '{"message":"Resource created"}');
         $guzzle = $this->createMock(ClientInterface::class);
-        $guzzle->method('request')
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
             ->with('POST', 'create-post', $guzzleOptions)
             ->willReturn($response);
 
@@ -133,7 +139,10 @@ class ClientTest extends TestCase
     {
         $exception = new class() extends Exception implements GuzzleException {};
         $guzzle = $this->createMock(ClientInterface::class);
-        $guzzle->method('request')->willThrowException($exception);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->willThrowException($exception);
 
         $this->expectException(ApiException::class);
 
@@ -145,7 +154,10 @@ class ClientTest extends TestCase
     {
         $response = new Response(404, [], '{}');
         $guzzle = $this->createMock(ClientInterface::class);
-        $guzzle->method('request')->willReturn($response);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->willReturn($response);
 
         $this->expectException(ResourceNotFoundException::class);
 
@@ -160,7 +172,10 @@ class ClientTest extends TestCase
     {
         $response = new Response($statusCode, [], '{}');
         $guzzle = $this->createMock(ClientInterface::class);
-        $guzzle->method('request')->willReturn($response);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->willReturn($response);
 
         $this->expectException(ApiException::class);
 
@@ -182,7 +197,10 @@ class ClientTest extends TestCase
         $wpErrorResponseBody = '{"code":"rest_missing_callback_param","message":"Parametro(i) mancante(i): code","data":{"status":400,"params":["code"]}}';
         $response = new Response(200, [], $wpErrorResponseBody);
         $guzzle = $this->createMock(ClientInterface::class);
-        $guzzle->method('request')->willReturn($response);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->willReturn($response);
 
         $this->expectException(ApiException::class);
         $this->expectExceptionMessage("Error from request GET error, response body: $wpErrorResponseBody");
@@ -198,7 +216,10 @@ class ClientTest extends TestCase
     {
         $response = new Response(200, [], $result);
         $guzzle = $this->createMock(ClientInterface::class);
-        $guzzle->method('request')->willReturn($response);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->willReturn($response);
 
         $this->expectException(ApiException::class);
         $this->expectExceptionMessageMatches('#^Invalid result from request GET invalid, response body:#');

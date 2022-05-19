@@ -46,6 +46,7 @@ class LoggedClientTest extends TestCase
         $result = ['message' => 'OK'];
 
         $this->innerClient
+            ->expects($this->once())
             ->method('request')
             ->with($requestMethod, $requestPath)
             ->willReturn($result);
@@ -103,6 +104,7 @@ class LoggedClientTest extends TestCase
         string $logLevel
     ) {
         $this->innerClient
+            ->expects($this->once())
             ->method('request')
             ->with($requestMethod, $requestPath)
             ->willThrowException($exception);
@@ -162,6 +164,7 @@ class LoggedClientTest extends TestCase
         $result = ['message' => 'OK'];
 
         $this->innerClient
+            ->expects($this->once())
             ->method('request')
             ->with($requestMethod, $requestPath, $params)
             ->willReturn($result);
