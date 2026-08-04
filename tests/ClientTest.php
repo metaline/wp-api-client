@@ -188,8 +188,69 @@ class ClientTest extends TestCase
         yield [400];
         yield [401];
         yield [403];
+        yield [409];
+        yield [501];
+        yield [505];
+    }
+
+    /**
+     * @dataProvider retryableStatusCodeProvider
+     */
+    public function testServerErrorsAreRetried(int $statusCode)
+    {
+        $guzzle = $this->createMock(ClientInterface::class);
+        $guzzle
+            ->expects($this->exactly(5))
+            ->method('request')
+            ->willReturn(new Response($statusCode, [], '{}'));
+
+        $this->expectException(ApiException::class);
+        $this->expectExceptionMessage(sprintf('Unexpected status code "%s"', $statusCode));
+
+        $client = new Client($guzzle);
+        $client->get('failure');
+    }
+
+    public function retryableStatusCodeProvider(): iterable
+    {
         yield [500];
+        yield [502];
         yield [503];
+        yield [504];
+    }
+
+    public function testARetriedRequestCanSucceed()
+    {
+        $guzzle = $this->createMock(ClientInterface::class);
+        $guzzle
+            ->expects($this->exactly(3))
+            ->method('request')
+            ->willReturnOnConsecutiveCalls(
+                new Response(503, [], '{}'),
+                new Response(500, [], '{}'),
+                new Response(200, [], '{"message":"OK"}')
+            );
+
+        $client = new Client($guzzle);
+
+        $this->assertSame(['message' => 'OK'], $client->get('flaky'));
+    }
+
+    /**
+     * @dataProvider nonIdempotentMethodNameProvider
+     */
+    public function testAServerErrorOnANonIdempotentMethodIsNotRetried(string $method)
+    {
+        $guzzle = $this->createMock(ClientInterface::class);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->willReturn(new Response(503, [], '{}'));
+
+        $this->expectException(ApiException::class);
+
+        $client = new Client($guzzle);
+        $client->$method('test');
     }
 
     /**
@@ -346,6 +407,12 @@ class ClientTest extends TestCase
 
         $client = new Client($guzzle);
         $client->$method('test');
+    }
+
+    public function nonIdempotentMethodNameProvider(): iterable
+    {
+        yield 'post' => ['post'];
+        yield 'patch' => ['patch'];
     }
 
     public function nonIdempotentMethodProvider(): iterable

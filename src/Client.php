@@ -26,13 +26,26 @@ final class Client implements ClientInterface
 {
     use ClientTrait;
 
+    private const MAX_ATTEMPTS = 5;
+
     /**
      * @see https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2
      */
     private const IDEMPOTENT_METHODS = ['GET', 'HEAD', 'OPTIONS', 'TRACE', 'PUT', 'DELETE'];
 
+    /**
+     * The server errors that are worth trying again. The other ones (501, 505, …)
+     * describe a server that will keep answering the same way.
+     */
+    private const RETRYABLE_STATUS_CODES = [500, 502, 503, 504];
+
     private GuzzleClient $client;
 
+    /**
+     * The client expects the `http_errors` option to be disabled: it reads the status
+     * code from the response, instead of letting Guzzle throw. Building the client
+     * through the ClientFactory takes care of it.
+     */
     public function __construct(GuzzleClient $client)
     {
         $this->client = $client;
@@ -124,8 +137,12 @@ final class Client implements ClientInterface
     /**
      * @throws GuzzleException
      */
-    private function sendRequest(string $method, string $uri, array $data = [], int $retries = 5): ResponseInterface
-    {
+    private function sendRequest(
+        string $method,
+        string $uri,
+        array $data = [],
+        int $attempts = self::MAX_ATTEMPTS
+    ): ResponseInterface {
         $options = [];
 
         if (!empty($data)) {
@@ -159,16 +176,28 @@ final class Client implements ClientInterface
         }
 
         try {
-            return $this->client->request($method, $uri, $options);
+            $response = $this->client->request($method, $uri, $options);
         } catch (ConnectException|ServerException $e) {
-            --$retries;
-
-            if (0 === $retries || !$this->isRetryable($method)) {
+            if (!$this->canRetry($method, $attempts)) {
                 throw $e;
             }
 
-            return $this->sendRequest($method, $uri, $data, $retries);
+            return $this->sendRequest($method, $uri, $data, $attempts - 1);
         }
+
+        if (
+            in_array($response->getStatusCode(), self::RETRYABLE_STATUS_CODES, true)
+            && $this->canRetry($method, $attempts)
+        ) {
+            return $this->sendRequest($method, $uri, $data, $attempts - 1);
+        }
+
+        return $response;
+    }
+
+    private function canRetry(string $method, int $attempts): bool
+    {
+        return $attempts > 1 && $this->isRetryable($method);
     }
 
     /**
