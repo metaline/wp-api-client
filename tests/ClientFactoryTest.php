@@ -146,6 +146,38 @@ class ClientFactoryTest extends TestCase
         $this->assertArrayNotHasKey('foo', $config);
     }
 
+    /**
+     * @dataProvider urlProvider
+     */
+    public function testWooCommerceFactoryNormalizesTheUrl(string $url, string $expectedBaseUri)
+    {
+        $factory = new ClientFactory();
+
+        $client = $factory->createFromWooCommerceCredentials('customer-key', 'customer-secret', $url);
+
+        $config = $this->readGuzzleConfig($client);
+
+        $this->assertSame($expectedBaseUri, (string) $config['base_uri']);
+    }
+
+    public function urlProvider(): iterable
+    {
+        yield 'with trailing slash' => [
+            'https://example.com/wp-json/',
+            'https://example.com/wp-json/',
+        ];
+
+        yield 'without trailing slash' => [
+            'https://example.com/wp-json',
+            'https://example.com/wp-json/',
+        ];
+
+        yield 'with multiple trailing slashes' => [
+            'https://example.com/wp-json///',
+            'https://example.com/wp-json/',
+        ];
+    }
+
     private function readGuzzleConfig(ClientInterface $client): array
     {
         $property = new ReflectionProperty(Client::class, 'client');
