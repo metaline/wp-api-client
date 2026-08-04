@@ -26,6 +26,11 @@ final class Client implements ClientInterface
 {
     use ClientTrait;
 
+    /**
+     * @see https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2
+     */
+    private const IDEMPOTENT_METHODS = ['GET', 'HEAD', 'OPTIONS', 'TRACE', 'PUT', 'DELETE'];
+
     private GuzzleClient $client;
 
     public function __construct(GuzzleClient $client)
@@ -158,11 +163,24 @@ final class Client implements ClientInterface
         } catch (ConnectException|ServerException $e) {
             --$retries;
 
-            if (0 === $retries) {
+            if (0 === $retries || !$this->isRetryable($method)) {
                 throw $e;
             }
 
             return $this->sendRequest($method, $uri, $data, $retries);
         }
+    }
+
+    /**
+     * Checks whether a failed request can be sent again.
+     *
+     * A transport error does not tell us if the server has already processed the
+     * request: cURL reports a timeout as a connection error too, and by then the
+     * order, or the customer, may well have been created. Repeating the call is
+     * safe only for the methods that are idempotent by definition.
+     */
+    private function isRetryable(string $method): bool
+    {
+        return in_array($method, self::IDEMPOTENT_METHODS, true);
     }
 }

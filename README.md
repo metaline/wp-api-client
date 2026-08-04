@@ -102,6 +102,12 @@ $data = [
 $client->post('wp/v2/media', $data);
 ```
 
+### Retries
+
+When a request fails at the transport level — the host cannot be resolved, the connection is refused or the server times out — the client sends it again, up to 5 times in total.
+
+Only the methods that are [idempotent by definition](https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2) are retried: `GET`, `HEAD`, `OPTIONS`, `TRACE`, `PUT` and `DELETE`. A `POST` or a `PATCH` is sent once and never repeated, because a transport error does not tell us whether the server has already processed the request: a timeout on `POST wc/v3/orders` may well leave an order behind, and retrying it would create a second one.
+
 ## License
 
 This project is made available under the MIT License (MIT). Please see [License File](LICENSE) for more information.

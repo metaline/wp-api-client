@@ -300,37 +300,76 @@ class ClientTest extends TestCase
         yield ['false']; // boolean false
     }
 
-    public function testRetriesWhenConnectionRefused()
+    /**
+     * @dataProvider idempotentMethodProvider
+     */
+    public function testIdempotentRequestsAreRetried(string $method, string $exceptionClass)
     {
-        $request = $this->createMock(RequestInterface::class);
+        $exception = $this->createTransferException($exceptionClass);
+
         $guzzle = $this->createMock(ClientInterface::class);
         $guzzle
             ->expects($this->exactly(5))
             ->method('request')
-            ->willThrowException(new ConnectException('Connection refused', $request));
+            ->willThrowException($exception);
 
         $this->expectException(ApiException::class);
-        $this->expectExceptionMessage('Connection refused');
+        $this->expectExceptionMessage($exception->getMessage());
 
         $client = new Client($guzzle);
-        $client->post('test');
+        $client->$method('test');
     }
 
-    public function testRetriesOnServerError()
+    public function idempotentMethodProvider(): iterable
     {
-        $request = $this->createMock(RequestInterface::class);
-        $response = $this->createMock(ResponseInterface::class);
+        foreach (['get', 'put', 'delete'] as $method) {
+            yield "$method on a connection error" => [$method, ConnectException::class];
+            yield "$method on a server error" => [$method, ServerException::class];
+        }
+    }
+
+    /**
+     * @dataProvider nonIdempotentMethodProvider
+     */
+    public function testNonIdempotentRequestsAreNotRetried(string $method, string $exceptionClass)
+    {
+        $exception = $this->createTransferException($exceptionClass);
+
+        $guzzle = $this->createMock(ClientInterface::class);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->willThrowException($exception);
+
+        $this->expectException(ApiException::class);
+        $this->expectExceptionMessage($exception->getMessage());
+
+        $client = new Client($guzzle);
+        $client->$method('test');
+    }
+
+    public function nonIdempotentMethodProvider(): iterable
+    {
+        foreach (['post', 'patch'] as $method) {
+            yield "$method on a connection error" => [$method, ConnectException::class];
+            yield "$method on a server error" => [$method, ServerException::class];
+        }
+    }
+
+    public function testALowercaseIdempotentMethodIsStillRetried()
+    {
+        $exception = $this->createTransferException(ConnectException::class);
+
         $guzzle = $this->createMock(ClientInterface::class);
         $guzzle
             ->expects($this->exactly(5))
             ->method('request')
-            ->willThrowException(new ServerException('Server maintenance', $request, $response));
+            ->willThrowException($exception);
 
         $this->expectException(ApiException::class);
-        $this->expectExceptionMessage('Server maintenance');
 
         $client = new Client($guzzle);
-        $client->post('test');
+        $client->request('get', 'test');
     }
 
     /**
@@ -355,5 +394,20 @@ class ClientTest extends TestCase
         yield 'lowercase' => ['delete', 'DELETE'];
         yield 'mixed case' => ['Options', 'OPTIONS'];
         yield 'already uppercase' => ['POST', 'POST'];
+    }
+
+    private function createTransferException(string $exceptionClass): GuzzleException
+    {
+        $request = $this->createMock(RequestInterface::class);
+
+        if (ServerException::class === $exceptionClass) {
+            return new ServerException(
+                'Server maintenance',
+                $request,
+                $this->createMock(ResponseInterface::class)
+            );
+        }
+
+        return new ConnectException('Connection refused', $request);
     }
 }
