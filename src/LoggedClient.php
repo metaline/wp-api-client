@@ -61,7 +61,7 @@ final class LoggedClient implements ClientInterface
         $this->successfulRequestLevel = $logLevel;
     }
 
-    public function request(string $method, $uri, array $data = [], array $query = []): array
+    public function request(string $method, string $uri, array $data = [], array $query = []): array
     {
         $logRequest = [
             'method' => $method,
@@ -98,6 +98,8 @@ final class LoggedClient implements ClientInterface
                 $value = "[FILE] {$value->getPathname()}";
             }
         }
+
+        unset($value);
 
         return $data;
     }

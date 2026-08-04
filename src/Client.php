@@ -60,7 +60,7 @@ final class Client implements ClientInterface
             parse_str(substr($uri, $pos + 1), $uriQuery);
 
             $uri = substr($uri, 0, $pos);
-            $query = array_merge($uriQuery, $query);
+            $query = array_replace($uriQuery, $query);
         }
 
         if (!empty($query)) {
@@ -82,6 +82,11 @@ final class Client implements ClientInterface
                     'Unexpected status code "%s" from request %s %s, body = %s',
                     $response->getStatusCode(), $method, $uri, $body
                 ));
+            }
+
+            // A 204, or any successful response with no content, carries no data
+            if ('' === trim($body)) {
+                return [];
             }
 
             $result = json_decode($body, true);

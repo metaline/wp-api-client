@@ -83,6 +83,13 @@ class ClientTest extends TestCase
             ['key' => 'value'],
             'path/to/api/call?foo=bar&key=value',
         ];
+
+        // A numeric key is replaced, not appended next to the one it overrides
+        yield [
+            'path/to/api/call?0=one&1=two',
+            ['1' => 'three'],
+            'path/to/api/call?0=one&1=three',
+        ];
     }
 
     /**
@@ -353,12 +360,35 @@ class ClientTest extends TestCase
 
     public function invalidResultProvider(): iterable
     {
-        yield ['']; // empty
         yield ['""']; // empty string
         yield ['"simple string"']; // simple string
         yield ['null']; // null
         yield ['true']; // boolean true
         yield ['false']; // boolean false
+    }
+
+    /**
+     * @dataProvider emptyBodyProvider
+     */
+    public function testASuccessfulResponseWithNoContentIsAnEmptyResult(int $statusCode, string $body)
+    {
+        $response = new Response($statusCode, [], $body);
+        $guzzle = $this->createMock(ClientInterface::class);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->willReturn($response);
+
+        $client = new Client($guzzle);
+
+        $this->assertSame([], $client->delete('resource'));
+    }
+
+    public function emptyBodyProvider(): iterable
+    {
+        yield 'no content' => [204, ''];
+        yield 'empty body on 200' => [200, ''];
+        yield 'whitespace only' => [200, "\n"];
     }
 
     /**
