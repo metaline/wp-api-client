@@ -192,9 +192,11 @@ class ClientTest extends TestCase
         yield [503];
     }
 
-    public function testWP_ErrorResponseThrowsApiException()
+    /**
+     * @dataProvider wpErrorProvider
+     */
+    public function testWP_ErrorResponseThrowsApiException(string $wpErrorResponseBody)
     {
-        $wpErrorResponseBody = '{"code":"rest_missing_callback_param","message":"Parametro(i) mancante(i): code","data":{"status":400,"params":["code"]}}';
         $response = new Response(200, [], $wpErrorResponseBody);
         $guzzle = $this->createMock(ClientInterface::class);
         $guzzle
@@ -207,6 +209,66 @@ class ClientTest extends TestCase
 
         $client = new Client($guzzle);
         $client->get('error');
+    }
+
+    public function wpErrorProvider(): iterable
+    {
+        yield 'missing parameter' => [
+            '{"code":"rest_missing_callback_param","message":"Missing parameter(s): code","data":{"status":400,"params":["code"]}}',
+        ];
+
+        yield 'forbidden' => [
+            '{"code":"woocommerce_rest_cannot_view","message":"Sorry, you cannot list resources.","data":{"status":401}}',
+        ];
+
+        // Some plugins serialize the status as a string
+        yield 'status as a string' => [
+            '{"code":"rest_no_route","message":"No route was found matching the URL.","data":{"status":"404"}}',
+        ];
+    }
+
+    /**
+     * @dataProvider legitimateCodeProvider
+     */
+    public function testResponseWithACodeOfItsOwnIsNotAnError(string $responseBody, array $expectedResult)
+    {
+        $response = new Response(200, [], $responseBody);
+        $guzzle = $this->createMock(ClientInterface::class);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->willReturn($response);
+
+        $client = new Client($guzzle);
+
+        $this->assertSame($expectedResult, $client->get('resource'));
+    }
+
+    public function legitimateCodeProvider(): iterable
+    {
+        // GET wc/v3/coupons/123
+        yield 'coupon' => [
+            '{"id":123,"code":"summer10","amount":"10.00","discount_type":"percent"}',
+            ['id' => 123, 'code' => 'summer10', 'amount' => '10.00', 'discount_type' => 'percent'],
+        ];
+
+        // GET wc/v3/data/currencies/EUR
+        yield 'currency' => [
+            '{"code":"EUR","name":"Euro","symbol":"&euro;"}',
+            ['code' => 'EUR', 'name' => 'Euro', 'symbol' => '&euro;'],
+        ];
+
+        // A resource with a code and a message, but without the status of a WP_Error
+        yield 'code and message without status' => [
+            '{"code":"order_note","message":"Order shipped."}',
+            ['code' => 'order_note', 'message' => 'Order shipped.'],
+        ];
+
+        // The code of a WP_Error is always a string
+        yield 'numeric code' => [
+            '{"code":42,"message":"The answer","data":{"status":200}}',
+            ['code' => 42, 'message' => 'The answer', 'data' => ['status' => 200]],
+        ];
     }
 
     /**

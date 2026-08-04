@@ -72,8 +72,7 @@ final class Client implements ClientInterface
                 );
             }
 
-            // Nel caso venga restituita una WP_Error
-            if (isset($result['code'])) {
+            if ($this->isWordPressError($result)) {
                 throw new ApiException(
                     sprintf('Error from request %s %s, response body: %s', $method, $uri, $body)
                 );
@@ -83,6 +82,24 @@ final class Client implements ClientInterface
         } catch (GuzzleException $e) {
             throw new ApiException($e->getMessage(), $e->getCode(), $e);
         }
+    }
+
+    /**
+     * Checks whether the result is a WP_Error serialized by the REST API.
+     *
+     * A WP_Error always carries a code, a message and a status inside the data key.
+     * Checking the code alone is not enough: several legitimate resources expose a
+     * code of their own (coupons, countries, currencies, …).
+     */
+    private function isWordPressError(array $result): bool
+    {
+        if (!isset($result['code'], $result['message'], $result['data']['status'])) {
+            return false;
+        }
+
+        return is_string($result['code'])
+            && is_string($result['message'])
+            && is_numeric($result['data']['status']);
     }
 
     /**
