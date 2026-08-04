@@ -11,6 +11,7 @@
 
 namespace MetaLine\WordPressAPIClient\Tests;
 
+use Closure;
 use GuzzleHttp\Client as GuzzleClient;
 use MetaLine\WordPressAPIClient\Client;
 use MetaLine\WordPressAPIClient\ClientFactory;
@@ -18,7 +19,6 @@ use MetaLine\WordPressAPIClient\ClientInterface;
 use MetaLine\WordPressAPIClient\LoggedClient;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
-use ReflectionProperty;
 
 class ClientFactoryTest extends TestCase
 {
@@ -180,10 +180,21 @@ class ClientFactoryTest extends TestCase
 
     private function readGuzzleConfig(ClientInterface $client): array
     {
-        $property = new ReflectionProperty(Client::class, 'client');
-        $property->setAccessible(true);
+        $this->assertInstanceOf(
+            Client::class,
+            $client,
+            'The factory no longer returns a Client, this helper must be updated.'
+        );
 
-        $guzzle = $property->getValue($client);
+        $readGuzzle = Closure::bind(
+            function () {
+                return $this->client;
+            },
+            $client,
+            Client::class
+        );
+
+        $guzzle = $readGuzzle();
 
         $this->assertInstanceOf(GuzzleClient::class, $guzzle);
 
