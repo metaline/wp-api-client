@@ -332,4 +332,28 @@ class ClientTest extends TestCase
         $client = new Client($guzzle);
         $client->post('test');
     }
+
+    /**
+     * @dataProvider methodCasingProvider
+     */
+    public function testTheMethodIsNormalizedToUppercase(string $method, string $expectedMethod)
+    {
+        $guzzle = $this->createMock(ClientInterface::class);
+        $guzzle
+            ->expects($this->once())
+            ->method('request')
+            ->with($expectedMethod, 'path', [])
+            ->willReturn(new Response(200, [], '{"message":"OK"}'));
+
+        $client = new Client($guzzle);
+
+        $this->assertSame(['message' => 'OK'], $client->request($method, 'path'));
+    }
+
+    public function methodCasingProvider(): iterable
+    {
+        yield 'lowercase' => ['delete', 'DELETE'];
+        yield 'mixed case' => ['Options', 'OPTIONS'];
+        yield 'already uppercase' => ['POST', 'POST'];
+    }
 }

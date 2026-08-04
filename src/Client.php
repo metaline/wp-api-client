@@ -35,6 +35,8 @@ final class Client implements ClientInterface
 
     public function request(string $method, string $uri, array $data = [], array $query = []): array
     {
+        $method = $this->normalizeMethod($method);
+
         if (false !== ($pos = strpos($uri, '?'))) {
             $uriQuery = [];
             parse_str(substr($uri, $pos + 1), $uriQuery);
@@ -82,6 +84,18 @@ final class Client implements ClientInterface
         } catch (GuzzleException $e) {
             throw new ApiException($e->getMessage(), $e->getCode(), $e);
         }
+    }
+
+    /**
+     * Converts an HTTP method to uppercase, as the protocol requires.
+     *
+     * Only the ASCII letters are converted, the same way guzzlehttp/psr7 does it:
+     * strtoupper() honors LC_CTYPE before PHP 8.2, and this library still supports
+     * that range.
+     */
+    private function normalizeMethod(string $method): string
+    {
+        return strtr($method, 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
     }
 
     /**
