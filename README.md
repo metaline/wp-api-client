@@ -29,6 +29,27 @@ $client = $factory->createFromWooCommerceCredentials(
 );
 ```
 
+The factory accepts an optional array of options, to customize the timeouts of the requests:
+
+```php
+$client = $factory->createFromWooCommerceCredentials(
+    $customerKey,
+    $customerSecret,
+    $apiUrl,
+    [
+        'timeout'         => 60,
+        'connect_timeout' => 5,
+    ]
+);
+```
+
+| Option            | Default | Description                                                |
+|-------------------|---------|------------------------------------------------------------|
+| `timeout`         | `120`   | Maximum number of seconds to wait for the whole request.   |
+| `connect_timeout` | `10`    | Maximum number of seconds to wait while trying to connect. |
+
+Both options are passed to Guzzle, so you can refer to the [Guzzle documentation](https://docs.guzzlephp.org/en/stable/request-options.html) for more details.
+
 If you need to access to the WordPress REST API through the WooCommerce API credentials, you need this hook in YOUR installation of WordPress:
 
 ```php

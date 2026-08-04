@@ -28,15 +28,18 @@ final class ClientFactory
     public function createFromWooCommerceCredentials(
         string $customerKey,
         string $customerSecret,
-        string $url
+        string $url,
+        array $options = []
     ): ClientInterface {
-        $options = [
-            'auth'     => [$customerKey, $customerSecret],
-            'base_uri' => $this->normalizeUrl($url),
+        $guzzleOptions = [
+            'auth'            => [$customerKey, $customerSecret],
+            'base_uri'        => $this->normalizeUrl($url),
+            'timeout'         => $options['timeout'] ?? 120,
+            'connect_timeout' => $options['connect_timeout'] ?? 10,
         ];
 
         $client = new Client(
-            $this->createGuzzleClient($options)
+            $this->createGuzzleClient($guzzleOptions),
         );
 
         if ($this->logger) {

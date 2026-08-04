@@ -11,11 +11,14 @@
 
 namespace MetaLine\WordPressAPIClient\Tests;
 
+use GuzzleHttp\Client as GuzzleClient;
 use MetaLine\WordPressAPIClient\Client;
 use MetaLine\WordPressAPIClient\ClientFactory;
+use MetaLine\WordPressAPIClient\ClientInterface;
 use MetaLine\WordPressAPIClient\LoggedClient;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use ReflectionProperty;
 
 class ClientFactoryTest extends TestCase
 {
@@ -43,5 +46,115 @@ class ClientFactoryTest extends TestCase
         );
 
         $this->assertInstanceOf(LoggedClient::class, $client);
+    }
+
+    public function testWooCommerceFactorySetsCredentialsAndDisablesHttpErrors()
+    {
+        $factory = new ClientFactory();
+
+        $client = $factory->createFromWooCommerceCredentials(
+            'customer-key',
+            'customer-secret',
+            'https://example.com/wp-json/'
+        );
+
+        $config = $this->readGuzzleConfig($client);
+
+        $this->assertSame(['customer-key', 'customer-secret'], $config['auth']);
+        $this->assertFalse($config['http_errors']);
+    }
+
+    public function testWooCommerceFactoryUsesDefaultTimeouts()
+    {
+        $factory = new ClientFactory();
+
+        $client = $factory->createFromWooCommerceCredentials(
+            'customer-key',
+            'customer-secret',
+            'https://example.com/wp-json/'
+        );
+
+        $config = $this->readGuzzleConfig($client);
+
+        $this->assertSame(120, $config['timeout']);
+        $this->assertSame(10, $config['connect_timeout']);
+    }
+
+    /**
+     * @dataProvider optionsProvider
+     */
+    public function testWooCommerceFactoryUsesGivenTimeouts(
+        array $options,
+        int $expectedTimeout,
+        int $expectedConnectTimeout
+    ) {
+        $factory = new ClientFactory();
+
+        $client = $factory->createFromWooCommerceCredentials(
+            'customer-key',
+            'customer-secret',
+            'https://example.com/wp-json/',
+            $options
+        );
+
+        $config = $this->readGuzzleConfig($client);
+
+        $this->assertSame($expectedTimeout, $config['timeout']);
+        $this->assertSame($expectedConnectTimeout, $config['connect_timeout']);
+    }
+
+    public function optionsProvider(): iterable
+    {
+        yield 'no option' => [
+            [],
+            120,
+            10,
+        ];
+
+        yield 'both options' => [
+            ['timeout' => 30, 'connect_timeout' => 5],
+            30,
+            5,
+        ];
+
+        yield 'only timeout' => [
+            ['timeout' => 30],
+            30,
+            10,
+        ];
+
+        yield 'only connect_timeout' => [
+            ['connect_timeout' => 5],
+            120,
+            5,
+        ];
+    }
+
+    public function testWooCommerceFactoryIgnoresUnknownOptions()
+    {
+        $factory = new ClientFactory();
+
+        $client = $factory->createFromWooCommerceCredentials(
+            'customer-key',
+            'customer-secret',
+            'https://example.com/wp-json/',
+            ['foo' => 'bar']
+        );
+
+        $config = $this->readGuzzleConfig($client);
+
+        $this->assertArrayNotHasKey('foo', $config);
+    }
+
+    private function readGuzzleConfig(ClientInterface $client): array
+    {
+        $property = new ReflectionProperty(Client::class, 'client');
+        $property->setAccessible(true);
+
+        $guzzle = $property->getValue($client);
+
+        $this->assertInstanceOf(GuzzleClient::class, $guzzle);
+
+        return $guzzle->getConfig();
     }
 }
